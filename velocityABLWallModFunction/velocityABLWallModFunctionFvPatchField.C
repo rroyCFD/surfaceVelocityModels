@@ -101,42 +101,12 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
     {
         return;
     }
-    Info << "Test1" << endl;
-  //Field<Type> newValues(this->patchInternalField());
-
-  //Type meanValuePsi =
-  //    gSum(this->patch().magSf()*newValues)
-  //   /gSum(this->patch().magSf());
-
-  //if (mag(meanValue_) > SMALL && mag(meanValuePsi)/mag(meanValue_) > 0.5)
-  //{
-  //    newValues *= mag(meanValue_)/mag(meanValuePsi);
-  //}
-  //else
-  //{
-  //    newValues += (meanValue_ - meanValuePsi);
-  //}
-
-  //this->operator==(newValues);
-
-  //fixedValueFvPatchField<Type>::updateCoeffs();
-
 
 //  Set up access to the internal velocity field.
     const volVectorField& UCell = db().objectRegistry::lookupObject<volVectorField>("U");
 
 //  Interpolate velocity on the cell faces.
     surfaceVectorField UFace = fvc::interpolate(UCell);
-
-//  Take the surfac normal gradient of the velocity field
-//  surfaceVectorField snGradU = fvc::snGrad(UCell);
-//  surfaceVectorField snGradU = fvc::snGrad(UCell);
-
-//  surfaceVectorField snGradU = 0.0*UFace;
-  //  if (Pstream::myProcNo() == 10)
-  //  {
-  //     Pout << snGradU << endl;
-  //  }
 
 //  Set up access to the mesh
     const fvMesh& mesh = patch().boundaryMesh().mesh();
@@ -149,7 +119,8 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
 
 //  Get perpendicular distance from cell center to boundary.  In other words,
 //  the height of the z_1/2 grid level.
-    const scalarField z12 = 1.0/patch().deltaCoeffs();
+    // const scalarField z12 = 1.0/patch().deltaCoeffs();
+    const scalarField& deltaCoeffs = patch().deltaCoeffs();
 
 //  Get face normal vectors
     vectorField normal = patch().nf();
@@ -169,7 +140,6 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
 	UParallel12[faceI] = UParallel12[faceI] - ((UParallel12[faceI] & normal[faceI]) * normal[faceI]);
     }
 
-    Info << "Test2" << endl;
 //  Now, the meat of the boundary condition: specify surface velocity!!
 //  For the momentum equation with no molecular viscosity, it doesn't matter what
 //  the velocity parallel to the surface is.  All that matters is that velocity
@@ -212,20 +182,13 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
              oppPatchID = mesh.boundaryMesh().whichPatch(oppFaceI);
              oppFaceI -= mesh.boundary()[oppPatchID].patch().start();
              U1[faceI] = UFace.boundaryField()[oppPatchID][oppFaceI];
-             snGradU1[faceI] = (U1[faceI] - UParallel12[faceI])/z12[faceI];
-           //Pout << "here " << oppPatchID << endl;
+             snGradU1[faceI] = (U1[faceI] - UParallel12[faceI])*deltaCoeffs[faceI];
          }
          else
          {
              U1[faceI] = UFace[oppFaceI];
-             snGradU1[faceI] = (U1[faceI] - UParallel12[faceI])/z12[faceI];
+             snGradU1[faceI] = (U1[faceI] - UParallel12[faceI])*deltaCoeffs[faceI];
          }
-
-         //  Calculate the velocity at the surface required for the solver to
-         //  recover surfNormGradULocal at z_1/2 when it approximates the
-         //  gradient using dU/dn = [U(z_1/2) - U(z_surface)]/(z_1/2-z_surface)
-//       ULocal[faceI] = U1[faceI] - (snGradU1[faceI] * (2.0*z12[faceI]));
-//       ULocal[faceI] = ULocal[faceI] - ((ULocal[faceI] & normal[faceI]) * normal[faceI]);
 
          ULocal[faceI] =  2.0*UParallel12[faceI] - U1[faceI];
          ULocal[faceI] -= ((ULocal[faceI] & normal[faceI]) * normal[faceI]);
@@ -235,8 +198,6 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
     vector U1Avg = gSum(U1 * area) / areaTotal;
     vector snGradU1Avg = gSum(snGradU1 * area) / areaTotal;
 
-    Info << "Test3" << endl;
-
     if (printOn_)
     {
          Info << "<U_1> = " << U1Avg << tab << "<U_s> = " << ULocalAvg << tab << "<dU/dn> = " << snGradU1Avg << endl;
@@ -245,9 +206,6 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
     this->operator==(ULocal);
 
     fixedValueFvPatchVectorField::updateCoeffs();
-
-    Info << "Test4" << endl;
-
 }
 
 
