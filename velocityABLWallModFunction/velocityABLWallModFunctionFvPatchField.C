@@ -111,12 +111,6 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
 //  Set up access to the mesh
     const fvMesh& mesh = patch().boundaryMesh().mesh();
 
-//  Get face areas (individual and global sum) (note that "gSum" is used as
-//  opposed to "sum" because "gSum" is parallel-aware --- it gathers sums from
-//  each processor to which this patch belongs and makes the global sum)
-    const scalarField area = patch().magSf();
-    scalar areaTotal = gSum(area);
-
 //  Get perpendicular distance from cell center to boundary.  In other words,
 //  the height of the z_1/2 grid level.
     // const scalarField z12 = 1.0/patch().deltaCoeffs();
@@ -193,6 +187,12 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
          ULocal[faceI] =  2.0*UParallel12[faceI] - U1[faceI];
          ULocal[faceI] -= ((ULocal[faceI] & normal[faceI]) * normal[faceI]);
     }
+
+    //  Get face areas (individual and global sum) (note that "gSum" is used as
+    //  opposed to "sum" because "gSum" is parallel-aware --- it gathers sums from
+    //  each processor to which this patch belongs and makes the global sum)
+    const scalarField& area = patch().magSf();
+    scalar areaTotal = gSum(area);
 
     vector ULocalAvg = gSum(ULocal * area) / areaTotal;
     vector U1Avg = gSum(U1 * area) / areaTotal;
