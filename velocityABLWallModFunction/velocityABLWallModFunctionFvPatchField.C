@@ -228,11 +228,18 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
         // When no opposite face present (tetrahedron or pyramid cell)
         if(oppFaceI < 0)
         {
-            FatalErrorInFunction
-            << "Cell " << cellI  << " has " <<  mesh.cells()[cellI].nFaces()
-            << " faces. Not a prism or hexagon!"
-            << exit(FatalError);
+            // FatalErrorInFunction
+            // << "Cell " << cellI  << " has " <<  mesh.cells()[cellI].nFaces()
+            // << " faces. Not a prism or hexagon!"
+            // << exit(FatalError);
+
+            // ---- Hack for faces with no-opposite face ---- //
+
+            // Copy the cell center velocity, as the opposite face velocity,
+            // which also sets surface-normal grad.to zero
+            U1[faceI] =  UParallel12[faceI];
         }
+
         // When the opposite face is part of another patch (not internal face)
         else if (oppFaceI >= mesh.nInternalFaces())
         {
@@ -243,6 +250,7 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
 
             U1[faceI] = UFace.boundaryField()[oppPatchID][oppFaceI];
         }
+
         else
         {
             U1[faceI] = UFace[oppFaceI];
