@@ -101,53 +101,55 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
     {
         return;
     }
-
-//  Set up access to the internal velocity field.
-    const volVectorField& UCell = db().objectRegistry::lookupObject<volVectorField>("U");
-
-//  Interpolate velocity on the cell faces.
-    surfaceVectorField UFace = fvc::interpolate(UCell);
-
-//  Set up access to the mesh
+    // Set up access to the mesh
     const fvMesh& mesh = patch().boundaryMesh().mesh();
 
-//  Get perpendicular distance from cell center to boundary.  In other words,
-//  the height of the z_1/2 grid level.
+    // Get perpendicular distance from cell center to boundary. In other words,
+    // the height of the z_1/2 grid level.
     // const scalarField z12 = 1.0/patch().deltaCoeffs();
     const scalarField& deltaCoeffs = patch().deltaCoeffs();
 
-//  Get face normal vectors
-    vectorField normal = patch().nf();
+    // Get face normal vectors: nf() provides a tmp field; thus stored for ease of use
+    const vectorField normal = patch().nf();
 
-//  Get resolved U vector at boundary face (UBoundaryFace refers to patch().lookupPatchField...)
+    // Get resolved U vector at boundary face (UBoundaryFace refers to patch().lookupPatchField...)
     const fvPatchVectorField& UBoundaryFace = patch().lookupPatchField<volVectorField, vector>("U");
 
-//  Get the components of the resolved velocity at z_1/2, U(z_1/2), that are
-//  parallel to the boundary face, U_||(z_1/2), by using:
-//
-//        U_||(z_1/2) = U(z_1/2) - (U(z_1/2) dot |S_n|)*|S_n|
-//
-//  where S_n is the surface normal vector.
+    /*
+    Get the components of the resolved velocity at z_1/2, U(z_1/2), that are
+    parallel to the boundary face, U_||(z_1/2), by using:
+        U_||(z_1/2) = U(z_1/2) - (U(z_1/2) dot |S_n|)*|S_n|,
+        where S_n is the surface normal vector.
+    */
     vectorField UParallel12 = UBoundaryFace.patchInternalField();
     forAll(UBoundaryFace, faceI)
     {
-	UParallel12[faceI] = UParallel12[faceI] - ((UParallel12[faceI] & normal[faceI]) * normal[faceI]);
+	   UParallel12[faceI] = UParallel12[faceI] - ((UParallel12[faceI] & normal[faceI]) * normal[faceI]);
     }
 
-//  Now, the meat of the boundary condition: specify surface velocity!!
-//  For the momentum equation with no molecular viscosity, it doesn't matter what
-//  the velocity parallel to the surface is.  All that matters is that velocity
-//  normal to the surface is zero.  The specified surface total stress creates
-//  the surface drag to create a velocity profile.  However, we need to create
-//  an appropriate surface normal velocity gradient at the z_1/2 level so that
-//  the SGS model has a meaningful gradient to be used in its production term(s).
-//  Therefore, we find the surface normal gradient at the z_1 level and "copy"
-//  that to the z_1/2 level.  We do so by specifying a surface parallel velocity
-//  that creates a surface normal gradient at z_1/2 equal to that at z_1.
+    /*
+    Now, the meat of the boundary condition: specify surface velocity!!
+    For the momentum equation with no molecular viscosity, it doesn't matter what
+    the velocity parallel to the surface is.  All that matters is that velocity
+    normal to the surface is zero.  The specified surface total stress creates
+    the surface drag to create a velocity profile.  However, we need to create
+    an appropriate surface normal velocity gradient at the z_1/2 level so that
+    the SGS model has a meaningful gradient to be used in its production term(s).
+    Therefore, we find the surface normal gradient at the z_1 level and "copy"
+    that to the z_1/2 level.  We do so by specifying a surface parallel velocity
+    that creates a surface normal gradient at z_1/2 equal to that at z_1.
 
-//  First, initialize the velocity at the surface and level z_1 and the surface
-//  normal gradient at level z_1/2.  ULocal is a reference to the object of this
-//  class, the boundary velocity field itself.
+    First, initialize the velocity at the surface and level z_1 and the surface
+    normal gradient at level z_1/2.  ULocal is a reference to the object of this
+    class, the boundary velocity field itself.
+    */
+
+    //  Set up access to the internal velocity field.
+    const volVectorField& UCell = db().objectRegistry::lookupObject<volVectorField>("U");
+
+    //  Interpolate velocity on the cell faces.
+    surfaceVectorField UFace = fvc::interpolate(UCell);
+
     vectorField ULocal(patch().size(),vector::zero);
     vectorField snGradU1(patch().size(),vector::zero);
     vectorField U1(patch().size(),vector::zero);
