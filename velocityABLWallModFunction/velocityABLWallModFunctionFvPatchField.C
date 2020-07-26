@@ -127,33 +127,33 @@ void velocityABLWallModFunctionFvPatchField::getOppositeFaceIDs()
     label nFaceStart = patch().patch().start();
     forAll(patch(), faceI)
     {
-         //  Find the global cell indices for cells adjacent to this patch (the
-         //  cells with centers at the z_1/2 level).
-         label cellI = patch().faceCells()[faceI];
+        //  Find the global cell indices for cells adjacent to this patch (the
+        //  cells with centers at the z_1/2 level).
+        const label cellI = patch().faceCells()[faceI];
 
-         //  Find the global face index for the face opposite the patch face (the
-         //  z_1 level face).
-         label oppFaceI = mesh.cells()[cellI].opposingFaceLabel(faceI+nFaceStart, mesh.faces());
+        //  Find the global face index for the face opposite the patch face (the
+        //  z_1 level face).
+        label oppFaceI = mesh.cells()[cellI].opposingFaceLabel(faceI+nFaceStart, mesh.faces());
 
-         if(oppFaceI < 0)
-         {
+        if(oppFaceI < 0)
+        {
             ++nNoOppFaceCells;
-         }
+        }
 
-         // if (oppFaceI >= UFace.size())
-         // Info << "UFace.size(): " << UFace.size()
-         //    << "\tnInternalFaces: " << mesh.nInternalFaces() << endl;
-         // else if (oppFaceI >= mesh.nInternalFaces())
-         // {
-         //     label oppPatchID = mesh.boundaryMesh().whichPatch(oppFaceI);
-         //     oppFaceI -= mesh.boundary()[oppPatchID].patch().start();
-         // }
+        // if (oppFaceI >= UFace.size())
+        // Info << "UFace.size(): " << UFace.size()
+        //    << "\tnInternalFaces: " << mesh.nInternalFaces() << endl;
+        // else if (oppFaceI >= mesh.nInternalFaces())
+        // {
+        //     label oppPatchID = mesh.boundaryMesh().whichPatch(oppFaceI);
+        //     oppFaceI -= mesh.boundary()[oppPatchID].patch().start();
+        // }
 
-         oppFaceIDs_[faceI] = oppFaceI;
+        oppFaceIDs_[faceI] = oppFaceI;
     }
 
-    Info << "Number patch faces with no-opposite face (not prism or hexagon): "
-         << nNoOppFaceCells <<" (out of "<< patch().size() << " faces)" << endl;
+    Info<< "Number of patch faces with no-opposite face (not prism or hexagon): "
+        << nNoOppFaceCells <<" (out of "<< patch().size() << " faces)" << endl;
 }
 
 
@@ -217,43 +217,45 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
     vectorField snGradU1(patch().size(),vector::zero);
     vectorField U1(patch().size(),vector::zero);
 
+    // loop over all patch faces
     forAll(patch(), faceI)
     {
-         //  Find the global cell indices for cells adjacent to this patch (the
-         //  cells with centers at the z_1/2 level).
-         label cellI = patch().faceCells()[faceI];
+        const label cellI = patch().faceCells()[faceI];
 
-         //  Find the global face index for the face opposite the patch face (the
-         //  z_1 level face).
-         label oppFaceI = mesh.cells()[cellI].opposingFaceLabel(faceI+patch().patch().start(),mesh.faces());
+        // important to create a non-constant copy
+        label oppFaceI = this->oppFaceIDs()[faceI];
 
-
-
-         if(oppFaceI < 0)
-         {
+        // When no opposite face present (tetrahedron or pyramid cell)
+        if(oppFaceI < 0)
+        {
             FatalErrorInFunction
             << "Cell " << cellI  << " has " <<  mesh.cells()[cellI].nFaces()
             << " faces. Not a prism or hexagon!"
             << exit(FatalError);
-         }
+        }
+        // When the opposite face is part of another patch (not internal face)
+        else if (oppFaceI >= mesh.nInternalFaces())
+        {
+            // get the patch index
+            label oppPatchID = mesh.boundaryMesh().whichPatch(oppFaceI);
+            // reset oppFace index
+            oppFaceI -= mesh.boundary()[oppPatchID].patch().start();
 
-         label oppPatchID = 0;
-         // if (oppFaceI >= UFace.size())
-         if (oppFaceI >= UFace.size())
-         {
-             oppPatchID = mesh.boundaryMesh().whichPatch(oppFaceI);
-             oppFaceI -= mesh.boundary()[oppPatchID].patch().start();
-             U1[faceI] = UFace.boundaryField()[oppPatchID][oppFaceI];
-             snGradU1[faceI] = (U1[faceI] - UParallel12[faceI])*deltaCoeffs[faceI];
-         }
-         else
-         {
-             U1[faceI] = UFace[oppFaceI];
-             snGradU1[faceI] = (U1[faceI] - UParallel12[faceI])*deltaCoeffs[faceI];
-         }
+            U1[faceI] = UFace.boundaryField()[oppPatchID][oppFaceI];
+        }
+        else
+        {
+            U1[faceI] = UFace[oppFaceI];
+        }
 
-         ULocal[faceI] =  2.0*UParallel12[faceI] - U1[faceI];
-         ULocal[faceI] -= ((ULocal[faceI] & normal[faceI]) * normal[faceI]);
+        // Now determine the surface-normal velocity gradient and surface velocity
+        snGradU1[faceI] = (U1[faceI] - UParallel12[faceI])*deltaCoeffs[faceI];
+
+        // Assuming gradient varies linearly in between two opposite faces
+        ULocal[faceI] =  2.0*UParallel12[faceI] - U1[faceI];
+
+        // Subtract the wall-normal component from the surface velocity
+        ULocal[faceI] -= ((ULocal[faceI] & normal[faceI]) * normal[faceI]);
     }
 
     //  Get face areas (individual and global sum) (note that "gSum" is used as
