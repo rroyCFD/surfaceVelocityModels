@@ -43,8 +43,11 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 )
 :
     fixedValueFvPatchVectorField(p, iF),
-    printOn_(false)
-{}
+    printOn_(false),
+    oppFaceIDs_(p.size(), -1)
+{
+    getOppositeFaceIDs();
+}
 
 
 velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
@@ -56,8 +59,12 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 )
 :
     fixedValueFvPatchVectorField(ptf, p, iF, mapper),
-    printOn_(ptf.printOn_)
-{}
+    printOn_(ptf.printOn_),
+    oppFaceIDs_(ptf.oppFaceIDs_, mapper)
+
+{
+    getOppositeFaceIDs();
+}
 
 
 velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
@@ -68,8 +75,16 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 )
 :
     fixedValueFvPatchVectorField(p, iF, dict),
-    printOn_(dict.lookupOrDefault<bool>("print", false))
-{}
+    printOn_(dict.lookupOrDefault<bool>("print", false)),
+
+    // --user compulsory input
+    // oppFaceIDs_("oppFaceIDs", dict, p.size())
+
+    // --always set to default values
+    oppFaceIDs_(p.size(), -1)
+{
+    getOppositeFaceIDs();
+}
 
 
 velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
@@ -78,8 +93,12 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 )
 :
     fixedValueFvPatchVectorField(ptf),
-    printOn_(ptf.printOn_)
-{}
+    printOn_(ptf.printOn_),
+    oppFaceIDs_(ptf.oppFaceIDs_)
+
+{
+    getOppositeFaceIDs();
+}
 
 
 velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
@@ -89,11 +108,55 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 )
 :
     fixedValueFvPatchVectorField(ptf, iF),
-    printOn_(ptf.printOn_)
-{}
+    printOn_(ptf.printOn_),
+    oppFaceIDs_(ptf.oppFaceIDs_)
+{
+    getOppositeFaceIDs();
+}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void velocityABLWallModFunctionFvPatchField::getOppositeFaceIDs()
+{
+    // Set up access to the mesh
+    const fvMesh& mesh = patch().boundaryMesh().mesh();
+
+    label nNoOppFaceCells = 0;
+
+    label nFaceStart = patch().patch().start();
+    forAll(patch(), faceI)
+    {
+         //  Find the global cell indices for cells adjacent to this patch (the
+         //  cells with centers at the z_1/2 level).
+         label cellI = patch().faceCells()[faceI];
+
+         //  Find the global face index for the face opposite the patch face (the
+         //  z_1 level face).
+         label oppFaceI = mesh.cells()[cellI].opposingFaceLabel(faceI+nFaceStart, mesh.faces());
+
+         if(oppFaceI < 0)
+         {
+            ++nNoOppFaceCells;
+         }
+
+         // if (oppFaceI >= UFace.size())
+         // Info << "UFace.size(): " << UFace.size()
+         //    << "\tnInternalFaces: " << mesh.nInternalFaces() << endl;
+         // else if (oppFaceI >= mesh.nInternalFaces())
+         // {
+         //     label oppPatchID = mesh.boundaryMesh().whichPatch(oppFaceI);
+         //     oppFaceI -= mesh.boundary()[oppPatchID].patch().start();
+         // }
+
+         oppFaceIDs_[faceI] = oppFaceI;
+    }
+
+    Info << "Number patch faces with no-opposite face (not prism or hexagon): "
+         << nNoOppFaceCells <<" (out of "<< patch().size() << " faces)" << endl;
+}
+
+
 
 void velocityABLWallModFunctionFvPatchField::updateCoeffs()
 {
@@ -164,15 +227,18 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
          //  z_1 level face).
          label oppFaceI = mesh.cells()[cellI].opposingFaceLabel(faceI+patch().patch().start(),mesh.faces());
 
+
+
          if(oppFaceI < 0)
          {
             FatalErrorInFunction
             << "Cell " << cellI  << " has " <<  mesh.cells()[cellI].nFaces()
-            << " faces. Not a prism or hexagon"
+            << " faces. Not a prism or hexagon!"
             << exit(FatalError);
          }
 
          label oppPatchID = 0;
+         // if (oppFaceI >= UFace.size())
          if (oppFaceI >= UFace.size())
          {
              oppPatchID = mesh.boundaryMesh().whichPatch(oppFaceI);

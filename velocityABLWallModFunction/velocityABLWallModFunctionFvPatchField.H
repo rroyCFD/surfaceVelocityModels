@@ -86,6 +86,8 @@ protected:
         //- Print information
         bool printOn_;
 
+        labelField oppFaceIDs_;
+
 
 public:
 
@@ -161,6 +163,15 @@ public:
 
             //- Update the coefficients associated with the patch field
             virtual void updateCoeffs();
+
+            // find the opposite face ids of the wall patch faces
+            void getOppositeFaceIDs();
+
+            // return a const reference to the protected oppFaceIDs_
+            const labelField& oppFaceIDs()
+            {
+                return oppFaceIDs_;
+            }
 
         //- Write
         void write(Ostream&) const;
