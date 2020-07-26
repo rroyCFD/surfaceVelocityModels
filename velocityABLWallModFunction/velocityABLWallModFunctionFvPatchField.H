@@ -86,8 +86,11 @@ protected:
         //- Print information
         bool printOn_;
 
-        labelField oppFaceIDs_;
+        // ratio of friction velocity to von-Karman constant
+        scalar  uStarByKappa_;
 
+        // field to store opposing face indices
+        labelField oppFaceIDs_;
 
 public:
 

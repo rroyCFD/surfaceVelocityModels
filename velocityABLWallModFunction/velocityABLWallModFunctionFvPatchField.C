@@ -44,8 +44,10 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 :
     fixedValueFvPatchVectorField(p, iF),
     printOn_(false),
+    uStarByKappa_(0.0),
     oppFaceIDs_(p.size(), -1)
 {
+    Info << "Ratio of friction-velocity to Von-Karman constant " << uStarByKappa_ << endl;
     getOppositeFaceIDs();
 }
 
@@ -60,9 +62,11 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 :
     fixedValueFvPatchVectorField(ptf, p, iF, mapper),
     printOn_(ptf.printOn_),
+    uStarByKappa_(ptf.uStarByKappa_),
     oppFaceIDs_(ptf.oppFaceIDs_, mapper)
 
 {
+    Info << "Ratio of friction-velocity to Von-Karman constant " << uStarByKappa_ << endl;
     getOppositeFaceIDs();
 }
 
@@ -76,13 +80,15 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 :
     fixedValueFvPatchVectorField(p, iF, dict),
     printOn_(dict.lookupOrDefault<bool>("print", false)),
+    uStarByKappa_(dict.lookupOrDefault<scalar>("uStarByKappa", 0.0)),
 
     // --user compulsory input
     // oppFaceIDs_("oppFaceIDs", dict, p.size())
 
-    // --always set to default values
+    // --always set to default values, and calculated later
     oppFaceIDs_(p.size(), -1)
 {
+    Info << "Ratio of friction-velocity to Von-Karman constant " << uStarByKappa_ << endl;
     getOppositeFaceIDs();
 }
 
@@ -94,6 +100,7 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 :
     fixedValueFvPatchVectorField(ptf),
     printOn_(ptf.printOn_),
+    uStarByKappa_(ptf.uStarByKappa_),
     oppFaceIDs_(ptf.oppFaceIDs_)
 
 {
@@ -109,8 +116,10 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 :
     fixedValueFvPatchVectorField(ptf, iF),
     printOn_(ptf.printOn_),
+    uStarByKappa_(ptf.uStarByKappa_),
     oppFaceIDs_(ptf.oppFaceIDs_)
 {
+    Info << "Ratio of friction-velocity to Von-Karman constant " << uStarByKappa_ << endl;
     getOppositeFaceIDs();
 }
 
@@ -220,7 +229,7 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
     // loop over all patch faces
     forAll(patch(), faceI)
     {
-        const label cellI = patch().faceCells()[faceI];
+        // const label cellI = patch().faceCells()[faceI];
 
         // important to create a non-constant copy
         label oppFaceI = this->oppFaceIDs()[faceI];
@@ -235,9 +244,26 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
 
             // ---- Hack for faces with no-opposite face ---- //
 
-            // Copy the cell center velocity, as the opposite face velocity,
-            // which also sets surface-normal grad.to zero
+            // Hack 1: Copy the cell center velocity, as the opposite face velocity,
+            // which also sets surface-normal grad. to zero
             U1[faceI] =  UParallel12[faceI];
+
+            // Hack 2: Assume log-law apply instantaneously and constant within the cell
+            //         Calculate opposite-face velocity from wall-normal gradient
+            //         dU/dZ =uStarByKappa_ / (z1/2)
+            //         U (opp face) = U (cell-center) + dU/dZ * z1/2
+            //         --Increase the opp-face velocity by the same gradient
+            //         U (opp face) = U (cell-center) * ( 1 + uStarByKappa_/mag(U(cell-center)) )
+
+            // scalar dUdZ = uStarByKappa_*deltaCoeffs[faceI];
+            // scalar dU = dUdZ/deltaCoeffs[faceI];
+            // scalar dUratio = dU/mag(UParallel12[faceI]);
+            // U1[faceI] *=  (1.0 + dUratio);
+
+            //compact version
+            U1[faceI] *= (1.0 + (uStarByKappa_/mag(UParallel12[faceI])) );
+
+            // Info << "U1:          " << U1[faceI] << endl;
         }
 
         // When the opposite face is part of another patch (not internal face)
@@ -264,6 +290,12 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
 
         // Subtract the wall-normal component from the surface velocity
         ULocal[faceI] -= ((ULocal[faceI] & normal[faceI]) * normal[faceI]);
+
+        // if(oppFaceI < 0)
+        // {
+        //     Info << "UParallel12: " << UParallel12[faceI] << nl
+        //          << "ULocal:      " <<ULocal[faceI] << nl << endl;
+        // }
     }
 
     //  Get face areas (individual and global sum) (note that "gSum" is used as
