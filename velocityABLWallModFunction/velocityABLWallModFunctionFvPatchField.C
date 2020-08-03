@@ -151,7 +151,8 @@ void velocityABLWallModFunctionFvPatchField::getOppositeFaceIDs()
 
         oppFaceIDs_[faceI] = oppFaceI;
     }
-
+    reduce(nNoOppFaceCells, sumOp<label>());
+ 
     Info<< "Number of patch faces with no-opposite face (not prism or hexagon): "
         << nNoOppFaceCells <<" (out of "<< patch().size() << " faces)" << endl;
 }
