@@ -44,7 +44,7 @@ velocityABLWallModFunctionFvPatchField::velocityABLWallModFunctionFvPatchField
 :
     fixedValueFvPatchVectorField(p, iF),
     printOn_(false),
-    uStarByKappa_(0.0),
+    uStarByKappa_(1.1725), // Bolund hill value
     oppFaceIDs_(p.size(), -1)
 {
     Info << "Ratio of friction-velocity to Von-Karman constant " << uStarByKappa_ << endl;
@@ -160,8 +160,9 @@ void velocityABLWallModFunctionFvPatchField::getOppositeFaceIDs()
 
         oppFaceIDs_[faceI] = oppFaceI;
     }
+    reduce(nNoOppFaceCells, sumOp<label>());
 
-    Info<< "Number of patch faces with no-opposite face (not prism or hexagon): "
+    Info<< "Number of patch faces with no-opposite face (not prism/hexagon): "
         << nNoOppFaceCells <<" (out of "<< patch().size() << " faces)" << endl;
 }
 
@@ -322,7 +323,9 @@ void velocityABLWallModFunctionFvPatchField::updateCoeffs()
 void velocityABLWallModFunctionFvPatchField::write(Ostream& os) const
 {
     fvPatchField<vector>::write(os);
-    os.writeKeyword("print")     << printOn_   << token::END_STATEMENT << nl;
+    os.writeKeyword("uStarByKappa") << uStarByKappa_ << token::END_STATEMENT << nl;
+    os.writeKeyword("print") << printOn_ << token::END_STATEMENT << nl;
+    os.writeKeyword("oppFaceIDs") << oppFaceIDs_ << token::END_STATEMENT << nl;
     this->writeEntry("value", os);
 }
 
